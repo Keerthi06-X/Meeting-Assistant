@@ -15,7 +15,10 @@ export interface Meeting {
   original_filename: string;
   file_size: number;
   file_format: string;
+  /** uploaded | transcribing | transcribed | failed */
   status: string;
+  transcript?: string | null;
+  transcribed_at?: string | null;
   uploaded_at: string;
 }
 

@@ -9,7 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -18,7 +17,6 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Returns list of uploaded meetings
  * @summary List all meetings
  */
 export const ListMeetingsResponseItem = zod.object({
@@ -27,10 +25,23 @@ export const ListMeetingsResponseItem = zod.object({
   "original_filename": zod.string(),
   "file_size": zod.number(),
   "file_format": zod.string(),
-  "status": zod.string(),
+  "status": zod.string().describe('uploaded | transcribing | transcribed | failed'),
+  "transcript": zod.string().nullish(),
+  "transcribed_at": zod.string().nullish(),
   "uploaded_at": zod.string()
 })
 export const ListMeetingsResponse = zod.array(ListMeetingsResponseItem)
+
+
+/**
+ * @summary Get meeting statistics
+ */
+export const GetMeetingStatsResponse = zod.object({
+  "total_meetings": zod.number(),
+  "total_size_bytes": zod.number(),
+  "formats": zod.record(zod.string(), zod.number()),
+  "recent_uploads": zod.number()
+})
 
 
 /**
@@ -46,7 +57,9 @@ export const GetMeetingResponse = zod.object({
   "original_filename": zod.string(),
   "file_size": zod.number(),
   "file_format": zod.string(),
-  "status": zod.string(),
+  "status": zod.string().describe('uploaded | transcribing | transcribed | failed'),
+  "transcript": zod.string().nullish(),
+  "transcribed_at": zod.string().nullish(),
   "uploaded_at": zod.string()
 })
 
@@ -64,14 +77,14 @@ export const DeleteMeetingResponse = zod.object({
 
 
 /**
- * Returns aggregated stats about all meetings
- * @summary Get meeting statistics
+ * @summary Trigger or retry transcription for a meeting
  */
-export const GetMeetingStatsResponse = zod.object({
-  "total_meetings": zod.number(),
-  "total_size_bytes": zod.number(),
-  "formats": zod.record(zod.string(), zod.number()),
-  "recent_uploads": zod.number()
+export const RetryTranscriptionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RetryTranscriptionResponse = zod.object({
+  "message": zod.string()
 })
 
 

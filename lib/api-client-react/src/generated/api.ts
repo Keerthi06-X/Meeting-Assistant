@@ -48,7 +48,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -126,7 +125,6 @@ export const getListMeetingsUrl = () => {
 }
 
 /**
- * Returns list of uploaded meetings
  * @summary List all meetings
  */
 export const listMeetings = async ( options?: RequestInit): Promise<Meeting[]> => {
@@ -183,6 +181,83 @@ export function useListMeetings<TData = Awaited<ReturnType<typeof listMeetings>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListMeetingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetMeetingStatsUrl = () => {
+
+
+
+
+  return `/api/meetings/stats`
+}
+
+/**
+ * @summary Get meeting statistics
+ */
+export const getMeetingStats = async ( options?: RequestInit): Promise<MeetingStats> => {
+
+  return customFetch<MeetingStats>(getGetMeetingStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMeetingStatsQueryKey = () => {
+    return [
+    `/api/meetings/stats`
+    ] as const;
+    }
+
+
+export const getGetMeetingStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMeetingStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMeetingStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMeetingStats>>> = ({ signal }) => getMeetingStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMeetingStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getMeetingStats>>>
+export type GetMeetingStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get meeting statistics
+ */
+
+export function useGetMeetingStats<TData = Awaited<ReturnType<typeof getMeetingStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMeetingStatsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -342,24 +417,23 @@ export const useDeleteMeeting = <TError = ErrorType<ErrorResponse>,
       return useMutation(getDeleteMeetingMutationOptions(options));
     }
 
-export const getGetMeetingStatsUrl = () => {
+export const getRetryTranscriptionUrl = (id: number,) => {
 
 
 
 
-  return `/api/meetings/stats`
+  return `/api/meetings/${id}/transcribe`
 }
 
 /**
- * Returns aggregated stats about all meetings
- * @summary Get meeting statistics
+ * @summary Trigger or retry transcription for a meeting
  */
-export const getMeetingStats = async ( options?: RequestInit): Promise<MeetingStats> => {
+export const retryTranscription = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
 
-  return customFetch<MeetingStats>(getGetMeetingStatsUrl(),
+  return customFetch<SuccessResponse>(getRetryTranscriptionUrl(id),
   {
     ...options,
-    method: 'GET'
+    method: 'POST'
 
 
   }
@@ -368,55 +442,48 @@ export const getMeetingStats = async ( options?: RequestInit): Promise<MeetingSt
 
 
 
+export const getRetryTranscriptionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryTranscription>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryTranscription>>, TError,{id: number}, TContext> => {
 
-export const getGetMeetingStatsQueryKey = () => {
-    return [
-    `/api/meetings/stats`
-    ] as const;
-    }
-
-
-export const getGetMeetingStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMeetingStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getGetMeetingStatsQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMeetingStats>>> = ({ signal }) => getMeetingStats({ signal, ...requestOptions });
+const mutationKey = ['retryTranscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
 
 
 
 
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryTranscription>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData> & { queryKey: QueryKey }
-}
-
-export type GetMeetingStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getMeetingStats>>>
-export type GetMeetingStatsQueryError = ErrorType<unknown>
+          return  retryTranscription(id,requestOptions)
+        }
 
 
-/**
- * @summary Get meeting statistics
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryTranscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof retryTranscription>>>
+
+    export type RetryTranscriptionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Trigger or retry transcription for a meeting
  */
-
-export function useGetMeetingStats<TData = Awaited<ReturnType<typeof getMeetingStats>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMeetingStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
-
- ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-
-  const queryOptions = getGetMeetingStatsQueryOptions(options)
-
-  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-
-
-
-
-
+export const useRetryTranscription = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryTranscription>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryTranscription>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRetryTranscriptionMutationOptions(options));
+    }
 
