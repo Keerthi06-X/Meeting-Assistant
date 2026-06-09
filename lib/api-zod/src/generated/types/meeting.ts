@@ -6,6 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
+export interface Meeting {
+  id: number;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  file_format: string;
   status: string;
+  uploaded_at: string;
 }

@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Smart Meeting Assistant API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: meetings
+    description: Meeting operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /meetings:
+    get:
+      operationId: listMeetings
+      tags: [meetings]
+      summary: List all meetings
+      description: Returns list of uploaded meetings
+      responses:
+        "200":
+          description: List of meetings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Meeting"
+  /meetings/{id}:
+    get:
+      operationId: getMeeting
+      tags: [meetings]
+      summary: Get a meeting by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meeting details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meeting"
+        "404":
+          description: Meeting not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteMeeting
+      tags: [meetings]
+      summary: Delete a meeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Meeting deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Meeting not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /meetings/stats:
+    get:
+      operationId: getMeetingStats
+      tags: [meetings]
+      summary: Get meeting statistics
+      description: Returns aggregated stats about all meetings
+      responses:
+        "200":
+          description: Meeting statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingStats"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +110,60 @@ components:
           type: string
       required:
         - status
-
+    Meeting:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        original_filename:
+          type: string
+        file_size:
+          type: integer
+        file_format:
+          type: string
+        status:
+          type: string
+        uploaded_at:
+          type: string
+      required:
+        - id
+        - filename
+        - original_filename
+        - file_size
+        - file_format
+        - status
+        - uploaded_at
+    MeetingStats:
+      type: object
+      properties:
+        total_meetings:
+          type: integer
+        total_size_bytes:
+          type: integer
+        formats:
+          type: object
+          additionalProperties:
+            type: integer
+        recent_uploads:
+          type: integer
+      required:
+        - total_meetings
+        - total_size_bytes
+        - formats
+        - recent_uploads
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
