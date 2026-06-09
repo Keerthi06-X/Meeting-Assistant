@@ -1,10 +1,10 @@
 import asyncio
+import json
 import os
 import random
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 import aiofiles
 import filetype
@@ -35,20 +35,35 @@ class MeetingRecord(Base):
     status = Column(String, default="uploaded")
     transcript = Column(Text, nullable=True)
     transcribed_at = Column(DateTime, nullable=True)
+    analysis_status = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+    decisions = Column(Text, nullable=True)   # JSON array of strings
+    action_items = Column(Text, nullable=True) # JSON array of {task, assigned_to, deadline}
+    analyzed_at = Column(DateTime, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
 
 Base.metadata.create_all(bind=engine)
 
-# ── Schema migration: add transcript columns to existing DBs ──────────────────
+
+# ── Schema migration: add new columns to existing DBs ────────────────────────
 def _migrate():
+    new_cols = {
+        "transcript": "TEXT",
+        "transcribed_at": "DATETIME",
+        "analysis_status": "TEXT",
+        "summary": "TEXT",
+        "decisions": "TEXT",
+        "action_items": "TEXT",
+        "analyzed_at": "DATETIME",
+    }
     with engine.connect() as conn:
-        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(meetings)"))}
-        if "transcript" not in cols:
-            conn.execute(text("ALTER TABLE meetings ADD COLUMN transcript TEXT"))
-        if "transcribed_at" not in cols:
-            conn.execute(text("ALTER TABLE meetings ADD COLUMN transcribed_at DATETIME"))
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(meetings)"))}
+        for col, col_type in new_cols.items():
+            if col not in existing:
+                conn.execute(text(f"ALTER TABLE meetings ADD COLUMN {col} {col_type}"))
         conn.commit()
+
 
 _migrate()
 
@@ -60,7 +75,7 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
-# ── Mock transcript templates ─────────────────────────────────────────────────
+# ── Mock transcript templates (matched by hash of filename) ───────────────────
 _MOCK_TRANSCRIPTS = [
     """\
 [00:00:03] Sarah Chen: Good morning everyone. Let's get started — we have a packed agenda today.
@@ -227,60 +242,219 @@ _MOCK_TRANSCRIPTS = [
 """,
 ]
 
+# ── Mock analysis datasets (one per transcript) ───────────────────────────────
+_MOCK_ANALYSES = [
+    {
+        "summary": (
+            "The team held its weekly sprint and Q3 roadmap review. The sprint was broadly "
+            "successful: the notification service shipped on time and the auth refactor is near "
+            "completion, though the analytics dashboard slipped due to underestimated data pipeline "
+            "complexity. The team aligned on a silent session refresh strategy for the auth edge "
+            "cases. For Q3, mobile parity will ship with push notifications but offline mode is "
+            "officially deferred to Q4 to manage scope. Cloud infrastructure costs are 12% over "
+            "budget due to load testing but are expected to normalize. A cost-alert threshold "
+            "will be configured by end of week."
+        ),
+        "decisions": [
+            "Silent session refresh will be used instead of forced re-login after 24 hours of inactivity.",
+            "Mobile parity for Q3 will include push notifications but exclude offline mode.",
+            "Offline mode is deferred to Q4 and flagged as a roadmap dependency.",
+            "Cloud infra cost alert threshold (10% week-over-week spike) will be configured.",
+            "Revised engineering estimates from James Liu replace the figures on slide 14.",
+        ],
+        "action_items": [
+            {"task": "Document silent refresh decision in the security ticket", "assigned_to": "Priya Nair", "deadline": "End of week"},
+            {"task": "Add spike task process note to the team wiki", "assigned_to": "James Liu", "deadline": "End of week"},
+            {"task": "Update JIRA epics to reflect Q3/Q4 mobile parity scope change", "assigned_to": "Marcus Reid", "deadline": "End of week"},
+            {"task": "Update roadmap to flag offline mode as a Q4 dependency", "assigned_to": "Priya Nair", "deadline": "End of week"},
+            {"task": "Work with DevOps to configure cloud infra cost alert threshold", "assigned_to": "Marcus Reid", "deadline": "End of week"},
+        ],
+    },
+    {
+        "summary": (
+            "The product team synced on sprint status, a vendor blocker, customer beta feedback, "
+            "and a design-system decision. The onboarding flow redesign has three concepts ready "
+            "for stakeholder review. The API integration is blocked by a flaky third-party auth "
+            "sandbox — low release risk if resolved by Monday, medium risk if still blocked by "
+            "Thursday. Design will produce auth error-state screens by Wednesday to stay productive "
+            "during the block. Beta feedback flagged dashboard load time (31% of respondents) as "
+            "the top issue; a quick parallelization of API calls was approved as an immediate fix. "
+            "The team standardized on Lucide as the project's icon library going forward."
+        ),
+        "decisions": [
+            "Lucide is the standardized icon library for the project; Heroicons usage will be phased out.",
+            "Dashboard load time fix (parallelizing sequential API calls) is approved for the current sprint.",
+            "Filter feature prioritization will be discussed offline to avoid mid-sprint disruption.",
+            "David Park will escalate to the third-party vendor's account team if the sandbox is still blocked Thursday.",
+        ],
+        "action_items": [
+            {"task": "Share Figma link for onboarding flow concepts in Slack", "assigned_to": "Emily Torres", "deadline": "Today"},
+            {"task": "Review onboarding flow design concepts and provide feedback", "assigned_to": "David Park", "deadline": "Thursday"},
+            {"task": "Send auth error-state design specs to Emily", "assigned_to": "Raj Patel", "deadline": "Today"},
+            {"task": "Deliver auth error-state designs (4 scenarios)", "assigned_to": "Emily Torres", "deadline": "Wednesday"},
+            {"task": "Provide vendor sandbox status update", "assigned_to": "Raj Patel", "deadline": "Monday morning"},
+            {"task": "Parallelize initial data fetch calls to fix dashboard load time", "assigned_to": "Raj Patel", "deadline": "This sprint"},
+            {"task": "Document Lucide icon library decision in the design system page", "assigned_to": "Emily Torres", "deadline": "End of day"},
+            {"task": "Announce Lucide standardization to the broader team", "assigned_to": "David Park", "deadline": "End of day"},
+        ],
+    },
+    {
+        "summary": (
+            "An emergency Sev-2 incident sync was held in response to a payment processing outage "
+            "affecting 40% of EU checkout attempts (approx. 1,200 failed transactions). The root "
+            "cause was identified as unexpected rate limiting by the payment gateway, compounded by "
+            "the team's aggressive retry logic. A configuration change reducing retry attempts from "
+            "5 to 2 with exponential backoff was deployed within minutes and successfully resolved "
+            "the issue, bringing the error rate below the 2% threshold. A transaction reconciliation "
+            "query was initiated to identify any double-charge risks. A full post-mortem is scheduled "
+            "for the following day."
+        ),
+        "decisions": [
+            "Retry logic reduced from 5 attempts to 2 with exponential backoff — deployed as immediate fix.",
+            "Failed transactions will be reconciled manually before any automated re-attempt process.",
+            "Double-charge risk cases will be handled manually and flagged as highest priority.",
+            "Status page was updated to reflect incident resolution once error rate fell below 2%.",
+        ],
+        "action_items": [
+            {"task": "Run transaction reconciliation query and flag double-charge risks", "assigned_to": "Nina Scott", "deadline": "Within 15 minutes"},
+            {"task": "Write up incident timeline and fix details for the post-mortem", "assigned_to": "Tom Berger", "deadline": "Before 10 AM tomorrow"},
+            {"task": "Lead post-mortem meeting", "assigned_to": "Alex Morgan", "deadline": "Tomorrow 10 AM"},
+            {"task": "Monitor error rate and confirm sustained recovery below 2%", "assigned_to": "Nina Scott", "deadline": "Immediate"},
+            {"task": "Review and update retry configuration across all payment service endpoints", "assigned_to": "Tom Berger", "deadline": "Post post-mortem"},
+        ],
+    },
+]
+
 
 def _generate_mock_transcript(original_filename: str) -> str:
-    """Return a realistic mock transcript seeded from the filename."""
     idx = hash(original_filename) % len(_MOCK_TRANSCRIPTS)
     return _MOCK_TRANSCRIPTS[idx].strip()
 
 
+def _generate_mock_analysis(transcript: str) -> dict:
+    """Pick the analysis dataset whose transcript most closely matches."""
+    best_idx = 0
+    best_overlap = -1
+    words = set(transcript.lower().split())
+    for i, t in enumerate(_MOCK_TRANSCRIPTS):
+        overlap = len(words & set(t.lower().split()))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_idx = i
+    return _MOCK_ANALYSES[best_idx]
+
+
 # ── Background transcription task ────────────────────────────────────────────
 async def _run_transcription(meeting_id: int, file_path: Path, original_filename: str):
-    """Transcribe a meeting audio file. Uses OpenAI Whisper if key is set, else mock."""
     db: Session = SessionLocal()
     try:
         record = db.query(MeetingRecord).filter(MeetingRecord.id == meeting_id).first()
         if not record:
             return
-
-        # Mark as transcribing
         record.status = "transcribing"
         db.commit()
 
         if OPENAI_API_KEY:
             try:
                 import openai  # type: ignore
-
                 client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
-                async with aiofiles.open(file_path, "rb") as audio_file:
-                    audio_bytes = await audio_file.read()
-
+                async with aiofiles.open(file_path, "rb") as f:
+                    audio_bytes = await f.read()
                 response = await client.audio.transcriptions.create(
                     model="whisper-1",
                     file=(original_filename, audio_bytes),
                 )
                 transcript = response.text
             except Exception as exc:
-                # Fall back to mock on any OpenAI error
                 await asyncio.sleep(random.uniform(3.0, 6.0))
                 transcript = _generate_mock_transcript(original_filename)
                 transcript += f"\n\n[Note: OpenAI transcription failed ({exc}). Showing simulated transcript.]"
         else:
-            # Simulate processing time (3–7 seconds)
             await asyncio.sleep(random.uniform(3.0, 7.0))
             transcript = _generate_mock_transcript(original_filename)
 
-        # Persist result
         db.refresh(record)
         record.transcript = transcript
         record.transcribed_at = datetime.utcnow()
         record.status = "transcribed"
         db.commit()
+        db.refresh(record)
+
+        # Automatically kick off analysis right after transcription
+        asyncio.ensure_future(_run_analysis(meeting_id, transcript))
 
     except Exception:
-        db.refresh(record)
-        record.status = "failed"
+        try:
+            db.refresh(record)
+            record.status = "failed"
+            db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+# ── Background analysis task ──────────────────────────────────────────────────
+async def _run_analysis(meeting_id: int, transcript: str):
+    db: Session = SessionLocal()
+    try:
+        record = db.query(MeetingRecord).filter(MeetingRecord.id == meeting_id).first()
+        if not record:
+            return
+        record.analysis_status = "analyzing"
         db.commit()
+
+        if OPENAI_API_KEY:
+            try:
+                import openai  # type: ignore
+                client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+                prompt = (
+                    "You are an expert meeting analyst. Analyze the following meeting transcript "
+                    "and return a JSON object with exactly these three keys:\n"
+                    "1. \"summary\": a 3-5 sentence paragraph summarizing the meeting.\n"
+                    "2. \"decisions\": a JSON array of strings, each a clear decision that was made.\n"
+                    "3. \"action_items\": a JSON array of objects, each with keys "
+                    "\"task\" (string), \"assigned_to\" (string), \"deadline\" (string).\n\n"
+                    "Return ONLY the raw JSON object with no markdown, no code fences.\n\n"
+                    f"Transcript:\n{transcript}"
+                )
+                response = await client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                )
+                analysis = json.loads(response.choices[0].message.content)
+                summary = str(analysis.get("summary", ""))
+                decisions = analysis.get("decisions", [])
+                action_items = analysis.get("action_items", [])
+            except Exception:
+                await asyncio.sleep(random.uniform(2.0, 4.0))
+                mock = _generate_mock_analysis(transcript)
+                summary = mock["summary"]
+                decisions = mock["decisions"]
+                action_items = mock["action_items"]
+        else:
+            await asyncio.sleep(random.uniform(2.0, 5.0))
+            mock = _generate_mock_analysis(transcript)
+            summary = mock["summary"]
+            decisions = mock["decisions"]
+            action_items = mock["action_items"]
+
+        db.refresh(record)
+        record.summary = summary
+        record.decisions = json.dumps(decisions)
+        record.action_items = json.dumps(action_items)
+        record.analyzed_at = datetime.utcnow()
+        record.analysis_status = "analyzed"
+        db.commit()
+
+    except Exception:
+        try:
+            db.refresh(record)
+            record.analysis_status = "analysis_failed"
+            db.commit()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -317,6 +491,18 @@ def validate_audio_file(filename: str, content: bytes) -> str:
 
 
 def _meeting_to_dict(m: MeetingRecord) -> dict:
+    decisions = None
+    action_items = None
+    if m.decisions:
+        try:
+            decisions = json.loads(m.decisions)
+        except Exception:
+            decisions = []
+    if m.action_items:
+        try:
+            action_items = json.loads(m.action_items)
+        except Exception:
+            action_items = []
     return {
         "id": m.id,
         "filename": m.filename,
@@ -326,6 +512,11 @@ def _meeting_to_dict(m: MeetingRecord) -> dict:
         "status": m.status,
         "transcript": m.transcript,
         "transcribed_at": m.transcribed_at.isoformat() if m.transcribed_at else None,
+        "analysis_status": m.analysis_status,
+        "summary": m.summary,
+        "decisions": decisions,
+        "action_items": action_items,
+        "analyzed_at": m.analyzed_at.isoformat() if m.analyzed_at else None,
         "uploaded_at": m.uploaded_at.isoformat(),
     }
 
@@ -348,9 +539,12 @@ def get_meeting_stats():
         ).all()
         formats = {row[0]: row[1] for row in rows}
         cutoff = datetime.utcnow() - timedelta(days=7)
-        recent = db.query(func.count(MeetingRecord.id)).filter(
-            MeetingRecord.uploaded_at >= cutoff
-        ).scalar() or 0
+        recent = (
+            db.query(func.count(MeetingRecord.id))
+            .filter(MeetingRecord.uploaded_at >= cutoff)
+            .scalar()
+            or 0
+        )
         return {
             "total_meetings": total,
             "total_size_bytes": total_size,
@@ -407,9 +601,8 @@ async def upload_meeting(background_tasks: BackgroundTasks, file: UploadFile = F
     finally:
         db.close()
 
-    # Kick off transcription in the background
+    # Transcription triggers analysis automatically when it completes
     background_tasks.add_task(_run_transcription, meeting_id, dest, original_filename)
-
     return result
 
 
@@ -429,6 +622,25 @@ def retry_transcription(id: int, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_run_transcription, id, file_path, original_filename)
     return {"message": "Transcription started."}
+
+
+@app.post("/meetings/{id}/analyze")
+def retry_analysis(id: int, background_tasks: BackgroundTasks):
+    db: Session = SessionLocal()
+    try:
+        m = db.query(MeetingRecord).filter(MeetingRecord.id == id).first()
+        if not m:
+            raise HTTPException(status_code=404, detail=f"Meeting {id} not found.")
+        if m.analysis_status == "analyzing":
+            raise HTTPException(status_code=409, detail="Analysis already in progress.")
+        if not m.transcript:
+            raise HTTPException(status_code=409, detail="Meeting has not been transcribed yet.")
+        transcript = m.transcript
+    finally:
+        db.close()
+
+    background_tasks.add_task(_run_analysis, id, transcript)
+    return {"message": "Analysis started."}
 
 
 @app.get("/meetings/{id}")

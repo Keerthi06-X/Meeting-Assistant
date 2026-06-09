@@ -487,3 +487,73 @@ export const useRetryTranscription = <TError = ErrorType<ErrorResponse>,
       return useMutation(getRetryTranscriptionMutationOptions(options));
     }
 
+export const getRetryAnalysisUrl = (id: number,) => {
+
+
+
+
+  return `/api/meetings/${id}/analyze`
+}
+
+/**
+ * @summary Trigger or retry AI analysis for a meeting
+ */
+export const retryAnalysis = async (id: number, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getRetryAnalysisUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRetryAnalysisMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAnalysis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryAnalysis>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['retryAnalysis'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryAnalysis>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  retryAnalysis(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryAnalysisMutationResult = NonNullable<Awaited<ReturnType<typeof retryAnalysis>>>
+
+    export type RetryAnalysisMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Trigger or retry AI analysis for a meeting
+ */
+export const useRetryAnalysis = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryAnalysis>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryAnalysis>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRetryAnalysisMutationOptions(options));
+    }
+

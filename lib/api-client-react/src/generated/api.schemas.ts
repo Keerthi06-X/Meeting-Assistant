@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface ActionItem {
+  task: string;
+  assigned_to: string;
+  deadline: string;
+}
+
 export interface Meeting {
   id: number;
   filename: string;
@@ -19,6 +25,12 @@ export interface Meeting {
   status: string;
   transcript?: string | null;
   transcribed_at?: string | null;
+  /** analyzing | analyzed | analysis_failed */
+  analysis_status?: string | null;
+  summary?: string | null;
+  decisions?: string[] | null;
+  action_items?: ActionItem[] | null;
+  analyzed_at?: string | null;
   uploaded_at: string;
 }
 

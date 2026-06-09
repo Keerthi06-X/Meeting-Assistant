@@ -5,17 +5,20 @@ import {
   getListMeetingsQueryKey, 
   getGetMeetingStatsQueryKey,
   useRetryTranscription,
+  useRetryAnalysis,
   getGetMeetingQueryKey
 } from "@workspace/api-client-react";
 import { formatBytes, formatDate } from "@/lib/format";
 import { 
   ArrowLeft, FileAudio, Trash2, Calendar, HardDrive, 
-  FileType, CheckCircle2, Clock, AlertCircle, Loader2, XCircle, FileText
+  FileType, CheckCircle2, Clock, AlertCircle, Loader2, XCircle, FileText,
+  Sparkles, CheckSquare, ListTodo, User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -52,15 +55,13 @@ export default function MeetingDetail() {
   });
 
   useEffect(() => {
-    if (meeting?.status === "transcribing") {
-      setRefetchInterval(2000);
-    } else {
-      setRefetchInterval(false);
-    }
-  }, [meeting?.status]);
+    const shouldPoll = meeting?.status === "transcribing" || meeting?.analysis_status === "analyzing";
+    setRefetchInterval(shouldPoll ? 2000 : false);
+  }, [meeting?.status, meeting?.analysis_status]);
 
   const deleteMeeting = useDeleteMeeting();
   const retryTranscription = useRetryTranscription();
+  const retryAnalysis = useRetryAnalysis();
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this meeting? This action cannot be undone.")) return;
@@ -83,6 +84,16 @@ export default function MeetingDetail() {
       toast.success("Transcription retried");
     } catch (err) {
       toast.error("Failed to retry transcription");
+    }
+  };
+
+  const handleRetryAnalysis = async () => {
+    try {
+      await retryAnalysis.mutateAsync({ id: meetingId });
+      queryClient.invalidateQueries({ queryKey: getGetMeetingQueryKey(meetingId) });
+      toast.success("Analysis retried");
+    } catch (err) {
+      toast.error("Failed to retry analysis");
     }
   };
 
@@ -262,6 +273,128 @@ export default function MeetingDetail() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {meeting.analysis_status === 'analyzing' && (
+            <Card className="shadow-sm border-primary/20">
+              <CardContent className="p-12 flex flex-col items-center justify-center text-center">
+                <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+                <h3 className="text-xl font-bold mb-2">Analyzing meeting...</h3>
+                <p className="text-muted-foreground max-w-sm">
+                  Extracting summary, decisions, and action items from the transcript.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {meeting.analysis_status === 'analysis_failed' && (
+            <Card className="shadow-sm border-red-200">
+              <CardContent className="p-12 flex flex-col items-center justify-center text-center">
+                <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+                <h3 className="text-xl font-bold text-destructive mb-2">Analysis Failed</h3>
+                <p className="text-muted-foreground max-w-sm mb-6">
+                  Something went wrong while generating the AI report.
+                </p>
+                <Button 
+                  onClick={handleRetryAnalysis} 
+                  disabled={retryAnalysis.isPending}
+                  className="min-w-[150px]"
+                >
+                  {retryAnalysis.isPending ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Retrying...</>
+                  ) : (
+                    "Retry Analysis"
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {meeting.analysis_status === 'analyzed' && (
+            <div className="space-y-6">
+              {meeting.summary && (
+                <Card className="shadow-sm bg-primary/5 border-primary/10">
+                  <CardHeader className="border-b border-primary/10 pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      Meeting Summary
+                    </CardTitle>
+                    <CardDescription>AI-generated overview</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <p className="text-lg leading-relaxed text-foreground/90">{meeting.summary}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {meeting.decisions && meeting.decisions.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-muted/20 border-b">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-primary" />
+                      Key Decisions
+                    </CardTitle>
+                    <CardDescription>{meeting.decisions.length} decisions recorded</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <ul className="divide-y divide-border">
+                      {meeting.decisions.map((decision, index) => (
+                        <li key={index} className="p-4 flex gap-4 items-start">
+                          <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                            {index + 1}
+                          </div>
+                          <span className="text-base text-foreground">{decision}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {meeting.action_items && meeting.action_items.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardHeader className="bg-muted/20 border-b">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <ListTodo className="w-5 h-5 text-primary" />
+                      Action Items
+                    </CardTitle>
+                    <CardDescription>{meeting.action_items.length} tasks identified</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead className="w-[50%]">Task</TableHead>
+                            <TableHead>Assigned To</TableHead>
+                            <TableHead>Deadline</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {meeting.action_items.map((item, index) => (
+                            <TableRow key={index} className={index % 2 === 0 ? "bg-background" : "bg-muted/10"}>
+                              <TableCell className="font-medium">{item.task}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <User className="w-4 h-4 shrink-0" />
+                                  <span>{item.assigned_to}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <Calendar className="w-4 h-4 shrink-0" />
+                                  <span>{item.deadline}</span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
 
           {meeting.status === 'transcribing' && (

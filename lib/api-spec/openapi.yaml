@@ -128,6 +128,36 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /meetings/{id}/analyze:
+    post:
+      operationId: retryAnalysis
+      tags: [meetings]
+      summary: Trigger or retry AI analysis for a meeting
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analysis started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already analyzing or not yet transcribed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -137,6 +167,19 @@ components:
           type: string
       required:
         - status
+    ActionItem:
+      type: object
+      properties:
+        task:
+          type: string
+        assigned_to:
+          type: string
+        deadline:
+          type: string
+      required:
+        - task
+        - assigned_to
+        - deadline
     Meeting:
       type: object
       properties:
@@ -157,6 +200,26 @@ components:
           type: string
           nullable: true
         transcribed_at:
+          type: string
+          nullable: true
+        analysis_status:
+          type: string
+          nullable: true
+          description: "analyzing | analyzed | analysis_failed"
+        summary:
+          type: string
+          nullable: true
+        decisions:
+          type: array
+          nullable: true
+          items:
+            type: string
+        action_items:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ActionItem"
+        analyzed_at:
           type: string
           nullable: true
         uploaded_at:

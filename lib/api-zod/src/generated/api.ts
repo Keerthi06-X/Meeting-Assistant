@@ -28,6 +28,15 @@ export const ListMeetingsResponseItem = zod.object({
   "status": zod.string().describe('uploaded | transcribing | transcribed | failed'),
   "transcript": zod.string().nullish(),
   "transcribed_at": zod.string().nullish(),
+  "analysis_status": zod.string().nullish().describe('analyzing | analyzed | analysis_failed'),
+  "summary": zod.string().nullish(),
+  "decisions": zod.array(zod.string()).nullish(),
+  "action_items": zod.array(zod.object({
+  "task": zod.string(),
+  "assigned_to": zod.string(),
+  "deadline": zod.string()
+})).nullish(),
+  "analyzed_at": zod.string().nullish(),
   "uploaded_at": zod.string()
 })
 export const ListMeetingsResponse = zod.array(ListMeetingsResponseItem)
@@ -60,6 +69,15 @@ export const GetMeetingResponse = zod.object({
   "status": zod.string().describe('uploaded | transcribing | transcribed | failed'),
   "transcript": zod.string().nullish(),
   "transcribed_at": zod.string().nullish(),
+  "analysis_status": zod.string().nullish().describe('analyzing | analyzed | analysis_failed'),
+  "summary": zod.string().nullish(),
+  "decisions": zod.array(zod.string()).nullish(),
+  "action_items": zod.array(zod.object({
+  "task": zod.string(),
+  "assigned_to": zod.string(),
+  "deadline": zod.string()
+})).nullish(),
+  "analyzed_at": zod.string().nullish(),
   "uploaded_at": zod.string()
 })
 
@@ -84,6 +102,18 @@ export const RetryTranscriptionParams = zod.object({
 })
 
 export const RetryTranscriptionResponse = zod.object({
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Trigger or retry AI analysis for a meeting
+ */
+export const RetryAnalysisParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RetryAnalysisResponse = zod.object({
   "message": zod.string()
 })
 

@@ -5,6 +5,7 @@
  * Smart Meeting Assistant API
  * OpenAPI spec version: 0.1.0
  */
+import type { ActionItem } from './actionItem';
 
 export interface Meeting {
   id: number;
@@ -16,5 +17,11 @@ export interface Meeting {
   status: string;
   transcript?: string | null;
   transcribed_at?: string | null;
+  /** analyzing | analyzed | analysis_failed */
+  analysis_status?: string | null;
+  summary?: string | null;
+  decisions?: string[] | null;
+  action_items?: ActionItem[] | null;
+  analyzed_at?: string | null;
   uploaded_at: string;
 }
