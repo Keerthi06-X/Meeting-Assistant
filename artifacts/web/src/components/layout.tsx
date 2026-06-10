@@ -1,12 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { Mic, LayoutDashboard, UploadCloud, List } from "lucide-react";
+import { Mic, LayoutDashboard, UploadCloud, List, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useGlobalMeetingNotifications } from "@/hooks/use-meeting-notifications";
+import { useTheme } from "@/hooks/use-theme";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   useGlobalMeetingNotifications();
+  const { theme, toggle } = useTheme();
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -18,11 +20,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar */}
       <aside className="w-64 border-r border-sidebar-border bg-sidebar flex flex-col hidden md:flex">
-        <div className="p-6">
+        <div className="p-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
             <Mic className="w-6 h-6" />
             <span>Smart Meeting</span>
           </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent/50 shrink-0"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </Button>
         </div>
         
         <nav className="flex-1 px-4 space-y-2">
@@ -65,7 +80,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Mic className="w-5 h-5" />
             <span>Smart Meeting</span>
           </Link>
-          {/* A simple menu button could go here if we built a mobile sheet */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            className="h-8 w-8"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </Button>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8">
