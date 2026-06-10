@@ -1,10 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { Mic, LayoutDashboard, UploadCloud, List, Settings } from "lucide-react";
+import { Mic, LayoutDashboard, UploadCloud, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useGlobalMeetingNotifications } from "@/hooks/use-meeting-notifications";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  useGlobalMeetingNotifications();
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
