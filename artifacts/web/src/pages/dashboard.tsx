@@ -3,14 +3,28 @@ import { formatBytes, formatDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
-import { FileAudio, HardDrive, Clock, BarChart3, ChevronRight, File } from "lucide-react";
+import { FileAudio, HardDrive, Clock, BarChart3, ChevronRight, File, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useState } from "react";
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetMeetingStats();
   const { data: meetings, isLoading: meetingsLoading } = useListMeetings();
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const recentMeetings = meetings?.slice(0, 5) || [];
+  const filteredMeetings = meetings?.filter(m => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      m.original_filename.toLowerCase().includes(q) ||
+      m.file_format.toLowerCase().includes(q) ||
+      (m.transcript ?? "").toLowerCase().includes(q) ||
+      (m.summary ?? "").toLowerCase().includes(q)
+    );
+  }) ?? [];
+
+  const recentMeetings = searchTerm ? filteredMeetings.slice(0, 5) : (meetings?.slice(0, 5) || []);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -91,14 +105,25 @@ export default function Dashboard() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
               <CardTitle>Recent Meetings</CardTitle>
               <CardDescription>Your latest uploaded recordings</CardDescription>
             </div>
-            <Link href="/meetings" className="text-sm text-primary hover:underline flex items-center">
-              View all <ChevronRight className="w-4 h-4 ml-1" />
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input 
+                  placeholder="Search meetings..." 
+                  className="pl-9 h-9"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Link href="/meetings" className="text-sm text-primary hover:underline flex items-center shrink-0">
+                View all <ChevronRight className="w-4 h-4 ml-1" />
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             {meetingsLoading ? (
@@ -106,37 +131,48 @@ export default function Dashboard() {
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
               </div>
             ) : recentMeetings.length > 0 ? (
-              <div className="divide-y border rounded-md">
-                {recentMeetings.map(meeting => (
-                  <div key={meeting.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <File className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <Link href={`/meetings/${meeting.id}`} className="font-medium hover:text-primary hover:underline transition-colors block">
-                          {meeting.original_filename}
-                        </Link>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                          <span className="bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground font-medium">{meeting.file_format}</span>
-                          <span>{formatBytes(meeting.file_size)}</span>
-                          <span>{formatDate(meeting.uploaded_at)}</span>
+              <div className="space-y-4">
+                <div className="divide-y border rounded-md">
+                  {recentMeetings.map(meeting => (
+                    <div key={meeting.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                          <File className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <Link href={`/meetings/${meeting.id}`} className="font-medium hover:text-primary hover:underline transition-colors block truncate">
+                            {meeting.original_filename}
+                          </Link>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground mt-1">
+                            <span className="bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground font-medium">{meeting.file_format}</span>
+                            <span>{formatBytes(meeting.file_size)}</span>
+                            <span className="hidden sm:inline">{formatDate(meeting.uploaded_at)}</span>
+                          </div>
                         </div>
                       </div>
+                      <Link href={`/meetings/${meeting.id}`} className="hidden md:block shrink-0 ml-4">
+                        <Button variant="ghost" size="sm">Details</Button>
+                      </Link>
                     </div>
-                    <Link href={`/meetings/${meeting.id}`} className="hidden md:block">
-                      <Button variant="ghost" size="sm">Details</Button>
+                  ))}
+                </div>
+                {searchTerm && (
+                  <div className="text-center pt-2">
+                    <Link href="/meetings" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                      View all results
                     </Link>
                   </div>
-                ))}
+                )}
               </div>
             ) : (
               <div className="text-center py-8 bg-muted/20 border border-dashed rounded-lg">
                 <FileAudio className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <h3 className="font-medium text-lg mb-1">No meetings yet</h3>
-                <p className="text-muted-foreground text-sm mb-4">Upload your first meeting to get started.</p>
-                <Link href="/upload" className="block w-fit mx-auto">
-                  <Button>Upload Meeting</Button>
+                <h3 className="font-medium text-lg mb-1">{searchTerm ? "No matches found" : "No meetings yet"}</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  {searchTerm ? "Try adjusting your search term." : "Upload your first meeting to get started."}
+                </p>
+                <Link href={searchTerm ? "/meetings" : "/upload"} className="block w-fit mx-auto">
+                  <Button>{searchTerm ? "Search all meetings" : "Upload Meeting"}</Button>
                 </Link>
               </div>
             )}

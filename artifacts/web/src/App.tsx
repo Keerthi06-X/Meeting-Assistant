@@ -9,20 +9,28 @@ import Dashboard from "@/pages/dashboard";
 import Upload from "@/pages/upload";
 import MeetingsList from "@/pages/meetings-list";
 import MeetingDetail from "@/pages/meeting-detail";
+import MeetingReport from "@/pages/meeting-report";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/upload" component={Upload} />
-        <Route path="/meetings" component={MeetingsList} />
-        <Route path="/meetings/:id" component={MeetingDetail} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      {/* Standalone print page — no sidebar */}
+      <Route path="/meetings/:id/report" component={MeetingReport} />
+      {/* All other pages with sidebar */}
+      <Route>
+        <Layout>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/upload" component={Upload} />
+            <Route path="/meetings" component={MeetingsList} />
+            <Route path="/meetings/:id" component={MeetingDetail} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
+    </Switch>
   );
 }
 

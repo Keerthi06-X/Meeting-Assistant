@@ -1,7 +1,7 @@
 import { useListMeetings, useDeleteMeeting, getListMeetingsQueryKey, getGetMeetingStatsQueryKey } from "@workspace/api-client-react";
 import { formatBytes, formatDate } from "@/lib/format";
 import { Link } from "wouter";
-import { FileAudio, Trash2, Search, MoreHorizontal, Download, Play, Plus } from "lucide-react";
+import { FileAudio, Trash2, Search, MoreHorizontal, Download, Play, Plus, FileText, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,10 +23,16 @@ export default function MeetingsList() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredMeetings = meetings?.filter(m => 
-    m.original_filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.file_format.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredMeetings = meetings?.filter(m => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    return (
+      m.original_filename.toLowerCase().includes(q) ||
+      m.file_format.toLowerCase().includes(q) ||
+      (m.transcript ?? "").toLowerCase().includes(q) ||
+      (m.summary ?? "").toLowerCase().includes(q)
+    );
+  }) ?? [];
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this meeting?")) return;
@@ -41,16 +47,45 @@ export default function MeetingsList() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'processing':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Processing</Badge>;
-      case 'done':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">Ready</Badge>;
-      case 'uploaded':
-      default:
-        return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">Uploaded</Badge>;
+  const getStatusBadge = (status: string, analysis_status?: string | null) => {
+    if (status === "uploaded") {
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">Uploaded</Badge>;
     }
+    if (status === "transcribing") {
+      return (
+        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" /> Transcribing
+        </Badge>
+      );
+    }
+    if (status === "failed") {
+      return <Badge variant="secondary" className="bg-red-100 text-red-800 hover:bg-red-100">Failed</Badge>;
+    }
+    if (status === "transcribed") {
+      if (analysis_status === "analyzing") {
+        return (
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 gap-1">
+            <Loader2 className="w-3 h-3 animate-spin" /> Analyzing
+          </Badge>
+        );
+      }
+      if (analysis_status === "analyzed") {
+        return (
+          <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100 gap-1">
+            <Sparkles className="w-3 h-3" /> Report Ready
+          </Badge>
+        );
+      }
+      if (analysis_status === "analysis_failed") {
+        return <Badge variant="secondary" className="bg-orange-100 text-orange-800 hover:bg-orange-100">Analysis Failed</Badge>;
+      }
+      return (
+        <Badge variant="secondary" className="bg-slate-100 text-slate-800 hover:bg-slate-100 gap-1">
+          <FileText className="w-3 h-3" /> Transcribed
+        </Badge>
+      );
+    }
+    return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">Uploaded</Badge>;
   };
 
   return (
@@ -73,12 +108,17 @@ export default function MeetingsList() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input 
-              placeholder="Search meetings by name or format..." 
+              placeholder="Search meetings by name, format, or content..." 
               className="pl-9 bg-background"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          {searchTerm && (
+            <div className="text-sm text-muted-foreground mt-2 ml-1">
+              {filteredMeetings.length} results for '{searchTerm}'
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -105,7 +145,7 @@ export default function MeetingsList() {
                       <span className="text-xs text-muted-foreground/60">•</span>
                       <span className="text-xs">{formatDate(meeting.uploaded_at)}</span>
                       <span className="text-xs text-muted-foreground/60">•</span>
-                      {getStatusBadge(meeting.status)}
+                      {getStatusBadge(meeting.status, meeting.analysis_status)}
                     </div>
                   </div>
                 </div>
@@ -128,6 +168,13 @@ export default function MeetingsList() {
                           <Play className="w-4 h-4" /> View Details
                         </DropdownMenuItem>
                       </Link>
+                      {meeting.analysis_status === "analyzed" && (
+                        <a href={`/meetings/${meeting.id}/report`} target="_blank" rel="noopener noreferrer">
+                          <DropdownMenuItem className="cursor-pointer gap-2">
+                            <FileText className="w-4 h-4" /> Export Report
+                          </DropdownMenuItem>
+                        </a>
+                      )}
                       <DropdownMenuItem className="cursor-pointer gap-2" disabled>
                         <Download className="w-4 h-4" /> Download Original
                       </DropdownMenuItem>

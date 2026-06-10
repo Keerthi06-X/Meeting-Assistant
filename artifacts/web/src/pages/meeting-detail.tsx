@@ -170,6 +170,13 @@ export default function MeetingDetail() {
               </div>
             </div>
             <div className="flex gap-2 shrink-0 md:ml-auto">
+              {meeting.analysis_status === "analyzed" && (
+                <a href={`/meetings/${meeting.id}/report`} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" className="gap-2">
+                    <FileText className="w-4 h-4" /> Export Report
+                  </Button>
+                </a>
+              )}
               <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground gap-2" onClick={handleDelete}>
                 <Trash2 className="w-4 h-4" /> Delete
               </Button>
